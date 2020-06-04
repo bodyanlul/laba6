@@ -85,7 +85,7 @@ bool Account::checkForActions() const
 	return status == STATE::OK;
 }
 
-bool Account::deposit(long long credit)
+bool Account::deposit(long long credit, bool create_transaction)
 {
 	if (credit < 0)
 		throw invalid_argument("the credit must be at least 0");
@@ -94,10 +94,14 @@ bool Account::deposit(long long credit)
 		return false;
 
 	income += credit;
+
+	if (create_transaction)
+		transactions.emplace_back(nullptr, credit);
+
 	return true;
 }
 
-bool Account::withdrawal(long long credit)
+bool Account::withdrawal(long long credit, bool create_transaction)
 {
 	if (credit < 0)
 		throw invalid_argument("the credit must be at least 0");
@@ -108,6 +112,10 @@ bool Account::withdrawal(long long credit)
 		return false;
 
 	expenditure += credit;
+
+	if (create_transaction)
+		transactions.emplace_back(nullptr, credit * (-1));
+
 	return true;
 }
 
@@ -116,86 +124,64 @@ unsigned long long Account::getBalance() const
 	return income - expenditure;
 }
 
-vector<Transaction> Account::getTransactions() const
-{
+vector<Transaction> Account::getTransactions() const {
 	return transactions;
 }
 
-void Account::pushTransaction(Transaction* transaction)
-{
-	transactions.push_back(*transaction);
+void Account::transferTo(Account* to, long long credit) {
+	if (!checkForActions() || credit <= 0)
+		return;
+
+	Transaction transaction(to, credit);
+	transactions.push_back(transaction);
+
+	if (!transaction.checkSuccess())
+		return;
+
+	this->withdrawal(credit, false);
 }
 
-Transaction::Transaction(Account* from, Account* to, long long credit) : credit(credit)
-{
-	if (to == nullptr && from == nullptr)
-		throw invalid_argument(R"("to" and "from" cannot be NULL at the same time)");
-
+Transaction::Transaction(Account* to, long long credit) : credit(credit), to(to) {
 	if (credit == 0)
 		throw invalid_argument("this transaction has no sense");
 
-	if (credit > 0)
-	{
-		this->to = to;
-		this->from = from;
-	}
-	else
-	{
-		this->to = from;
-		this->from = to;
-		this->credit *= (-1);
-	}
-
 	if (to == nullptr)
 	{
-		type = WITHDRAWAL;
-		isSuccess = from->withdrawal(this->credit);
-		from->pushTransaction(this);
+		if (credit > 0)
+			type = TYPE::DEPOSIT;
+		else
+		{
+			type = TYPE::WITHDRAWAL;
+			this->credit *= -1;
+		}
+
+		isSuccess = true;
+		return;
 	}
-	else if (from == nullptr)
-	{
-		type = DEPOSIT;
-		isSuccess = to->deposit(this->credit);
-		to->pushTransaction(this);
-	}
+
+	type = TYPE::TRANSFER;
+
+	if (credit > 0)
+		isSuccess = to->deposit(credit, false);
 	else
 	{
-		type = TRANSFER;
-
-		if (to->checkForActions() && from->withdrawal(this->credit))
-		{
-			isSuccess = true;
-			to->deposit(this->credit);
-		}
-		else
-			isSuccess = false;
-
-		to->pushTransaction(this);
-		from->pushTransaction(this);
+		this->credit *= -1;
+		isSuccess = to->withdrawal(this->credit, false);
 	}
 }
 
-Account* Transaction::getSource() const
-{
-	return from;
-}
-
-Account* Transaction::getDestination() const
-{
+Account* Transaction::getDestination() const {
 	return to;
 }
 
-long long Transaction::getCredit() const
-{
+long long Transaction::getCredit() const {
 	return credit;
 }
 
-Transaction::TYPE Transaction::getType() const
-{
+Transaction::TYPE Transaction::getType() const {
 	return type;
 }
 
-bool Transaction::checkSuccess() const
-{
+bool Transaction::checkSuccess() const {
 	return isSuccess;
 }

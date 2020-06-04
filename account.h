@@ -53,15 +53,15 @@ public:
 
 	/** пополнение наличными
 		  сумма должна быть в копейках */
-	bool deposit(long long credit);
+	bool deposit(long long credit, bool create_transaction = true);
 
 	/** вывод наличных
 		  сумма должна быть в копейках */
-	bool withdrawal(long long credit);
+	bool withdrawal(long long credit, bool create_transaction = true);
 
 	vector<Transaction> getTransactions() const;
 
-	void pushTransaction(Transaction* transaction);
+	void transferTo(Account* to, long long credit);
 
 	enum STATE
 	{
@@ -82,19 +82,11 @@ private:
 	vector<Transaction> transactions;
 };
 
-class Transaction
-{
+class Transaction {
 public:
-	Transaction(Account* from, Account* to, long long int credit);
+	Transaction(Account* to, long long credit);
 
-	enum TYPE
-	{
-		TRANSFER,
-		WITHDRAWAL,
-		DEPOSIT
-	};
-
-	Account* getSource() const;
+	enum TYPE { TRANSFER, WITHDRAWAL, DEPOSIT };
 
 	Account* getDestination() const;
 
@@ -105,7 +97,7 @@ public:
 	bool checkSuccess() const;
 
 private:
-	Account* to, * from;
+	Account* to, * from{};
 	long long credit;
 	TYPE type;
 	bool isSuccess;
